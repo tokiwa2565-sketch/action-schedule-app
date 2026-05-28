@@ -2,15 +2,13 @@
  * 行動予定管理アプリ - Express Server
  * REST APIでデータを管理し、静的ファイルを配信
  */
-
+require('dotenv').config();
 const express = require('express');
-const fs = require('fs');
 const path = require('path');
+const mongoose = require('mongoose');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const DATA_DIR = path.join(__dirname, 'data');
-const DATA_FILE = path.join(DATA_DIR, 'schedules.json');
 
 // === Middleware ===
 app.use(express.json({ limit: '10mb' })); // 写真データ用に上限を設定
@@ -34,31 +32,29 @@ app.use((err, req, res, next) => {
   next(err);
 });
 
-// === Data Helpers ===
+// === MongoDB Setup ===
+const MONGODB_URI = process.env.MONGODB_URI;
 
-function ensureDataDir() {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
+if (!MONGODB_URI) {
+  console.warn('⚠️ MONGODB_URI が設定されていません。データベースに接続できません。');
+} else {
+  mongoose.connect(MONGODB_URI)
+    .then(() => console.log('✅ MongoDBに接続しました'))
+    .catch(err => console.error('❌ MongoDB接続エラー:', err));
 }
 
-function loadData() {
-  ensureDataDir();
-  try {
-    if (fs.existsSync(DATA_FILE)) {
-      const raw = fs.readFileSync(DATA_FILE, 'utf-8');
-      return JSON.parse(raw);
-    }
-  } catch (err) {
-    console.error('データ読み込みエラー:', err.message);
-  }
-  return {};
-}
+// Mongoose Schema
+const scheduleSchema = new mongoose.Schema({
+  date: { type: String, required: true },
+  member: { type: String, required: true },
+  entries: { type: Array, default: [] },
+  photos: { type: Array, default: [] },
+  updatedAt: { type: Date, default: Date.now }
+});
 
-function saveData(data) {
-  ensureDataDir();
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf-8');
-}
+scheduleSchema.index({ date: 1, member: 1 }, { unique: true });
+const Schedule = mongoose.model('Schedule', scheduleSchema);
+
 
 // === API Routes ===
 
@@ -66,38 +62,41 @@ function saveData(data) {
  * GET /api/schedules/:date
  * 指定日の全員分のデータを取得
  */
-app.get('/api/schedules/:date', (req, res) => {
+app.get('/api/schedules/:date', async (req, res) => {
   const { date } = req.params;
 
   // 日付フォーマットバリデーション
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(date)) {
     return res.status(400).json({ error: '日付フォーマットが不正です (YYYY-MM-DD)' });
   }
 
-  const allData = loadData();
-  const result = {};
-
-  // 指定日のデータをフィルタリング
-  Object.keys(allData).forEach(key => {
-    if (key.startsWith(date + '_')) {
-      const member = key.substring(date.length + 1);
-      result[member] = allData[key];
-    }
-  });
-
-  res.json(result);
+  try {
+    const schedules = await Schedule.find({ date });
+    const result = {};
+    schedules.forEach(s => {
+      result[s.member] = {
+        entries: s.entries,
+        photos: s.photos,
+        updatedAt: s.updatedAt
+      };
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('データ取得エラー:', err);
+    res.status(500).json({ error: 'データベースエラー' });
+  }
 });
 
 /**
  * POST /api/schedules/:date/:member
  * 指定日・指定メンバーのデータを保存
  */
-app.post('/api/schedules/:date/:member', (req, res) => {
+app.post('/api/schedules/:date/:member', async (req, res) => {
   console.log('[POST Handler] Hit');
   const { date, member } = req.params;
   const { entries, photos } = req.body;
 
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(date)) {
     return res.status(400).json({ error: '日付フォーマットが不正です' });
   }
 
@@ -105,64 +104,63 @@ app.post('/api/schedules/:date/:member', (req, res) => {
     return res.status(400).json({ error: 'entries は配列で指定してください' });
   }
 
-  const allData = loadData();
-  const key = `${date}_${member}`;
-
   // 内容があるかチェック
   const hasContent = entries.some(e => e.time || e.no || e.customer || e.content);
   const hasPhotos = photos && Array.isArray(photos) && photos.length > 0;
 
-  if (hasContent || hasPhotos) {
-    allData[key] = {
-      entries: entries,
-      photos: photos || [],
-      updatedAt: new Date().toISOString()
-    };
-  } else {
-    delete allData[key];
+  try {
+    if (hasContent || hasPhotos) {
+      // upsert (更新か新規作成)
+      await Schedule.findOneAndUpdate(
+        { date, member },
+        { 
+          entries: entries,
+          photos: photos || [],
+          updatedAt: new Date()
+        },
+        { upsert: true, new: true }
+      );
+    } else {
+      // 空の場合は削除
+      await Schedule.findOneAndDelete({ date, member });
+    }
+    res.json({ success: true, message: `${member} の予定を保存しました` });
+  } catch (err) {
+    console.error('データ保存エラー:', err);
+    res.status(500).json({ error: 'データベースエラー' });
   }
-
-  saveData(allData);
-  res.json({ success: true, message: `${member} の予定を保存しました` });
 });
 
 /**
  * DELETE /api/schedules/:date/:member
  * 指定日・指定メンバーのデータを削除
  */
-app.delete('/api/schedules/:date/:member', (req, res) => {
+app.delete('/api/schedules/:date/:member', async (req, res) => {
   const { date, member } = req.params;
 
-  const allData = loadData();
-  const key = `${date}_${member}`;
-
-  if (allData[key]) {
-    delete allData[key];
-    saveData(allData);
+  try {
+    await Schedule.findOneAndDelete({ date, member });
+    res.json({ success: true, message: `${member} の予定を削除しました` });
+  } catch (err) {
+    console.error('データ削除エラー:', err);
+    res.status(500).json({ error: 'データベースエラー' });
   }
-
-  res.json({ success: true, message: `${member} の予定を削除しました` });
 });
 
 /**
  * DELETE /api/schedules/:date
  * 指定日の全員分データを削除
  */
-app.delete('/api/schedules/:date', (req, res) => {
+app.delete('/api/schedules/:date', async (req, res) => {
   const { date } = req.params;
 
-  const allData = loadData();
-  let deleted = 0;
-
-  Object.keys(allData).forEach(key => {
-    if (key.startsWith(date + '_')) {
-      delete allData[key];
-      deleted++;
-    }
-  });
-
-  saveData(allData);
-  res.json({ success: true, message: `${deleted}件のデータを削除しました` });
+  try {
+    const result = await Schedule.deleteMany({ date });
+    res.json({ success: true, message: `${result.deletedCount}件のデータを削除しました` });
+  } catch (err) {
+    console.error('データ削除エラー:', err);
+    res.status(500).json({ error: 'データベースエラー' });
+  }
 });
 
 // === Static Files ===
