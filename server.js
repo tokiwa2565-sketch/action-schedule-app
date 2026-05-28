@@ -66,7 +66,7 @@ app.get('/api/schedules/:date', async (req, res) => {
   const { date } = req.params;
 
   // 日付フォーマットバリデーション
-  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(date)) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return res.status(400).json({ error: '日付フォーマットが不正です (YYYY-MM-DD)' });
   }
 
@@ -96,7 +96,7 @@ app.post('/api/schedules/:date/:member', async (req, res) => {
   const { date, member } = req.params;
   const { entries, photos } = req.body;
 
-  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(date)) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return res.status(400).json({ error: '日付フォーマットが不正です' });
   }
 
