@@ -1,0 +1,13 @@
+{
+  "name": "action-schedule-app",
+  "version": "1.0.0",
+  "description": "行動予定管理アプリ - 複数端末対応",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0"
+  }
+}

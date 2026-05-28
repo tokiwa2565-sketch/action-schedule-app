@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="description" content="行動予定管理">
+  <title>行動予定管理</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="app-container" id="app">
+    <header class="app-header">
+      <h1>行動予定</h1>
+      <div class="date-display-bar">
+        <button class="date-nav-btn" id="prevDate" aria-label="前日">◀</button>
+        <button class="date-display-btn" id="dateDisplayBtn">
+          <span class="cal-icon">▼</span>
+          <span id="dateDisplay"></span>
+        </button>
+        <button class="date-nav-btn" id="nextDate" aria-label="翌日">▶</button>
+      </div>
+    </header>
+
+    <div class="member-list" id="memberList"></div>
+    <button class="btn-clear-all" id="clearAllBtn">本日のデータをすべてクリア</button>
+  </div>
+
+  <!-- Calendar -->
+  <div class="calendar-overlay" id="calendarOverlay">
+    <div class="calendar-popup">
+      <div class="calendar-header">
+        <button id="calPrevMonth" aria-label="前月">◀</button>
+        <span class="cal-title" id="calTitle"></span>
+        <button id="calNextMonth" aria-label="翌月">▶</button>
+      </div>
+      <div class="calendar-weekdays">
+        <span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span>
+      </div>
+      <div class="calendar-days" id="calDays"></div>
+      <button class="calendar-today-btn" id="calTodayBtn">今日に戻る</button>
+    </div>
+  </div>
+
+  <!-- Input Modal -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="modalTitle">行動予定</h2>
+        <button class="modal-close-btn" id="modalCloseBtn" aria-label="閉じる">✕</button>
+      </div>
+
+      <div class="schedule-entries" id="scheduleEntries"></div>
+
+      <button class="add-entry-btn" id="addEntryBtn">
+        <span class="plus-icon">＋</span>
+        予定を追加
+      </button>
+
+      <!-- Copy to other member -->
+      <div class="copy-section" id="copySection">
+        <div class="copy-section-title">この行動予定を他のメンバーに反映</div>
+        <div class="copy-row">
+          <select class="copy-select" id="copyTargetSelect">
+            <option value="">-- 反映先を選択 --</option>
+          </select>
+          <button class="copy-btn" id="copyBtn">反映</button>
+        </div>
+      </div>
+
+      <div class="photo-section">
+        <div class="photo-section-title">写真添付</div>
+        <div class="photo-upload-area" id="photoUploadArea">
+          <input type="file" id="photoInput" accept="image/*" multiple>
+          <div class="photo-upload-icon">＋</div>
+          <div class="photo-upload-text">タップして写真を選択</div>
+        </div>
+        <div class="photo-preview-container" id="photoPreviewContainer"></div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn btn-secondary" id="clearBtn">クリア</button>
+        <button class="btn btn-primary" id="saveBtn">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">保存しました</div>
+
+  <div class="image-modal-overlay" id="imageModal">
+    <img src="" alt="拡大表示" id="imageModalImg">
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
